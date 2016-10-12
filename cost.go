@@ -7,10 +7,10 @@ import (
 	"github.com/unixpickle/num-analysis/linalg"
 )
 
-// AngleCost is a cost function for angles measured
-// in radians.
-// It takes wrap-around into account, providing a
-// smooth continuous way to reward equivalent angles.
+// AngleCost is a cost function for angles measured in
+// radians.
+// It takes wrap-around into account, providing a smooth,
+// continuous way to reward equivalent angles.
 type AngleCost struct{}
 
 // Cost returns the sum of the discrepencies between
@@ -35,7 +35,8 @@ func (_ AngleCost) Cost(exp linalg.Vector, act autofunc.Result) autofunc.Result 
 }
 
 // CostR is like Cost but with r-operators.
-func (_ AngleCost) CostR(rv autofunc.RVector, exp linalg.Vector, act autofunc.RResult) autofunc.RResult {
+func (_ AngleCost) CostR(rv autofunc.RVector, exp linalg.Vector,
+	act autofunc.RResult) autofunc.RResult {
 	return autofunc.PoolR(act, func(act autofunc.RResult) autofunc.RResult {
 		sin := make(linalg.Vector, len(exp))
 		cos := make(linalg.Vector, len(exp))
