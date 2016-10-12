@@ -33,6 +33,9 @@ func NewNetwork(size int) *Network {
 	tensorDepth := 3
 	res := &Network{
 		InputSize: size,
+		Net: neuralnet.Network{
+			&neuralnet.RescaleLayer{Bias: -0.5, Scale: 1},
+		},
 	}
 	for _, depth := range []int{10, 30, 60, 90} {
 		conv := &neuralnet.ConvLayer{

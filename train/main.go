@@ -5,8 +5,10 @@ package main
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/unixpickle/autorot"
 	"github.com/unixpickle/sgd"
@@ -15,11 +17,12 @@ import (
 
 const (
 	DefaultInSize = 48
-	StepSize      = 0.001
-	BatchSize     = 16
+	BatchSize     = 64
+	StepSize      = 0.001 / 64
 )
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
 	if len(os.Args) != 3 && len(os.Args) != 4 {
 		dieUsage()
 	}
@@ -54,13 +57,11 @@ func main() {
 
 	log.Println("Training...")
 	cf := autorot.AngleCost{}
-	gradienter := &sgd.Adam{
-		Gradienter: &neuralnet.BatchRGradienter{
-			Learner:       network.Net.BatchLearner(),
-			CostFunc:      cf,
-			MaxGoroutines: 1,
-			MaxBatchSize:  BatchSize,
-		},
+	gradienter := &neuralnet.BatchRGradienter{
+		Learner:       network.Net.BatchLearner(),
+		CostFunc:      cf,
+		MaxGoroutines: 2,
+		MaxBatchSize:  BatchSize / 2,
 	}
 
 	var iter int
@@ -68,10 +69,10 @@ func main() {
 	sgd.SGDMini(gradienter, samples, StepSize, BatchSize, func(s sgd.SampleSet) bool {
 		var lastCost float64
 		if lastBatch != nil {
-			lastCost = neuralnet.TotalCost(cf, network.Net, lastBatch)
+			lastCost = neuralnet.TotalCost(cf, network.Net, lastBatch.Subset(0, 1))
 		}
 		lastBatch = s.Copy()
-		cost := neuralnet.TotalCost(cf, network.Net, s)
+		cost := neuralnet.TotalCost(cf, network.Net, s.Subset(0, 1))
 		log.Printf("iteration %d: cost=%f last=%f", iter, cost, lastCost)
 		iter++
 		return true
