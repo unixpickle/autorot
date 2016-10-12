@@ -42,8 +42,7 @@ func ReadSampleSet(imageSize int, dir string) (*SampleSet, error) {
 		}
 		ext := filepath.Ext(path)
 		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
-			fullPath := filepath.Join(dir, path)
-			sample := Sample{Path: fullPath, Angle: randomAngle()}
+			sample := Sample{Path: path, Angle: randomAngle()}
 			res.Samples = append(res.Samples, sample)
 		}
 		return nil
@@ -79,7 +78,10 @@ func (s *SampleSet) GetSample(idx int) interface{} {
 		panic(err)
 	}
 	rotated := Rotate(img, sample.Angle)
-	return netInputTensor(rotated, s.ImageSize)
+	return neuralnet.VectorSample{
+		Input:  netInputTensor(rotated, s.ImageSize).Data,
+		Output: []float64{sample.Angle},
+	}
 }
 
 // Copy creates a copy of the sample set.
