@@ -79,20 +79,7 @@ func (s *SampleSet) GetSample(idx int) interface{} {
 		panic(err)
 	}
 	rotated := Rotate(img, sample.Angle)
-	scaled := resize.Resize(uint(s.ImageSize), uint(s.ImageSize),
-		rotated, resize.Bilinear)
-	res := neuralnet.NewTensor3(s.ImageSize, s.ImageSize, 3)
-	for x := 0; x < s.ImageSize; x++ {
-		for y := 0; y < s.ImageSize; y++ {
-			pixel := scaled.At(x+scaled.Bounds().Min.X,
-				y+scaled.Bounds().Min.Y)
-			r, g, b, _ := pixel.RGBA()
-			res.Set(x, y, 0, float64(r)/0xffff)
-			res.Set(x, y, 1, float64(g)/0xffff)
-			res.Set(x, y, 2, float64(b)/0xffff)
-		}
-	}
-	return res
+	return netInputTensor(rotated, s.ImageSize)
 }
 
 // Copy creates a copy of the sample set.
@@ -115,4 +102,20 @@ func (s *SampleSet) Subset(i, j int) sgd.SampleSet {
 
 func randomAngle() float64 {
 	return rand.Float64() * math.Pi * 2
+}
+
+func netInputTensor(img image.Image, size int) *neuralnet.Tensor3 {
+	scaled := resize.Resize(uint(size), uint(size), img, resize.Bilinear)
+	res := neuralnet.NewTensor3(size, size, 3)
+	for x := 0; x < size; x++ {
+		for y := 0; y < size; y++ {
+			pixel := scaled.At(x+scaled.Bounds().Min.X,
+				y+scaled.Bounds().Min.Y)
+			r, g, b, _ := pixel.RGBA()
+			res.Set(x, y, 0, float64(r)/0xffff)
+			res.Set(x, y, 1, float64(g)/0xffff)
+			res.Set(x, y, 2, float64(b)/0xffff)
+		}
+	}
+	return res
 }
