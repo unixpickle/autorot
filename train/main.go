@@ -17,8 +17,8 @@ import (
 
 const (
 	DefaultInSize = 48
-	BatchSize     = 64
-	StepSize      = 0.001 / 64
+	BatchSize     = 32
+	StepSize      = 0.001 / BatchSize
 )
 
 func main() {
@@ -60,8 +60,8 @@ func main() {
 	gradienter := &neuralnet.BatchRGradienter{
 		Learner:       network.Net.BatchLearner(),
 		CostFunc:      cf,
-		MaxGoroutines: 2,
-		MaxBatchSize:  BatchSize / 2,
+		MaxGoroutines: 1,
+		MaxBatchSize:  BatchSize,
 	}
 
 	var iter int
@@ -69,10 +69,10 @@ func main() {
 	sgd.SGDMini(gradienter, samples, StepSize, BatchSize, func(s sgd.SampleSet) bool {
 		var lastCost float64
 		if lastBatch != nil {
-			lastCost = neuralnet.TotalCost(cf, network.Net, lastBatch.Subset(0, 1))
+			lastCost = neuralnet.TotalCost(cf, network.Net, lastBatch)
 		}
 		lastBatch = s.Copy()
-		cost := neuralnet.TotalCost(cf, network.Net, s.Subset(0, 1))
+		cost := neuralnet.TotalCost(cf, network.Net, s)
 		log.Printf("iteration %d: cost=%f last=%f", iter, cost, lastCost)
 		iter++
 		return true

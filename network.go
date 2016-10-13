@@ -37,7 +37,7 @@ func NewNetwork(size int) *Network {
 			&neuralnet.RescaleLayer{Bias: -0.5, Scale: 1},
 		},
 	}
-	for _, depth := range []int{10, 30, 60, 90} {
+	for _, depth := range []int{10, 30, 60, 60} {
 		conv := &neuralnet.ConvLayer{
 			InputWidth:   tensorSize,
 			InputHeight:  tensorSize,
@@ -60,12 +60,19 @@ func NewNetwork(size int) *Network {
 	}
 	res.Net = append(res.Net, &neuralnet.DenseLayer{
 		InputCount:  tensorSize * tensorSize * tensorDepth,
-		OutputCount: 100,
+		OutputCount: 50,
 	}, neuralnet.HyperbolicTangent{}, &neuralnet.DenseLayer{
-		InputCount:  100,
+		InputCount:  50,
 		OutputCount: 1,
 	})
 	res.Net.Randomize()
+	for _, layer := range res.Net {
+		if cn, ok := layer.(*neuralnet.ConvLayer); ok {
+			for i := range cn.Biases.Vector {
+				cn.Biases.Vector[i] = 1
+			}
+		}
+	}
 	return res
 }
 
@@ -102,13 +109,18 @@ func LoadNetwork(path string) (*Network, error) {
 // Evaluate runs the network on an image and reports the
 // angle at which it should be rotated.
 func (n *Network) Evaluate(img image.Image) float64 {
+	if img.Bounds().Dx() != img.Bounds().Dy() {
+		// Hack to crop the center square.
+		img = Rotate(img, 0)
+	}
+
 	inTensor := netInputTensor(img, n.InputSize)
 	inVar := &autofunc.Variable{Vector: inTensor.Data}
 	out := n.Net.Apply(inVar).Output()[0]
-	for out < 0 {
+	for out < math.Pi {
 		out += math.Pi * 2
 	}
-	for out > math.Pi*2 {
+	for out > math.Pi {
 		out -= math.Pi * 2
 	}
 	return out
