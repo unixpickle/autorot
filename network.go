@@ -63,8 +63,8 @@ func NewNetwork(size int) *Network {
 		OutputCount: 50,
 	}, neuralnet.HyperbolicTangent{}, &neuralnet.DenseLayer{
 		InputCount:  50,
-		OutputCount: 1,
-	})
+		OutputCount: 4,
+	}, &neuralnet.LogSoftmaxLayer{})
 	res.Net.Randomize()
 	for _, layer := range res.Net {
 		if cn, ok := layer.(*neuralnet.ConvLayer); ok {
@@ -113,17 +113,11 @@ func (n *Network) Evaluate(img image.Image) float64 {
 		// Hack to crop the center square.
 		img = Rotate(img, 0)
 	}
-
 	inTensor := netInputTensor(img, n.InputSize)
 	inVar := &autofunc.Variable{Vector: inTensor.Data}
-	out := n.Net.Apply(inVar).Output()[0]
-	for out < math.Pi {
-		out += math.Pi * 2
-	}
-	for out > math.Pi {
-		out -= math.Pi * 2
-	}
-	return out
+	out := n.Net.Apply(inVar).Output()
+	_, idx := out.Max()
+	return float64(idx) * math.Pi / 2
 }
 
 // Save saves the network to a file.

@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/unixpickle/num-analysis/linalg"
 	"github.com/unixpickle/resize"
 	"github.com/unixpickle/sgd"
 	"github.com/unixpickle/weakai/neuralnet"
@@ -78,9 +79,14 @@ func (s *SampleSet) GetSample(idx int) interface{} {
 		panic(err)
 	}
 	rotated := Rotate(img, sample.Angle)
+
+	outIdx := int(2*sample.Angle/math.Pi + 0.5)
+	outVec := make(linalg.Vector, 4)
+	outVec[outIdx] = 1
+
 	return neuralnet.VectorSample{
 		Input:  netInputTensor(rotated, s.ImageSize).Data,
-		Output: []float64{sample.Angle},
+		Output: outVec,
 	}
 }
 
@@ -103,7 +109,7 @@ func (s *SampleSet) Subset(i, j int) sgd.SampleSet {
 }
 
 func randomAngle() float64 {
-	return rand.Float64() * math.Pi * 2
+	return float64(rand.Intn(4)) * math.Pi / 2
 }
 
 func netInputTensor(img image.Image, size int) *neuralnet.Tensor3 {

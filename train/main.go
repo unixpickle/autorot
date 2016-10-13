@@ -56,7 +56,7 @@ func main() {
 	}
 
 	log.Println("Training...")
-	cf := autorot.AngleCost{}
+	cf := neuralnet.DotCost{}
 	gradienter := &neuralnet.BatchRGradienter{
 		Learner:       network.Net.BatchLearner(),
 		CostFunc:      cf,
