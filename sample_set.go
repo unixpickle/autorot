@@ -113,8 +113,14 @@ func randomAngle() float64 {
 }
 
 func netInputTensor(img image.Image, size int) *neuralnet.Tensor3 {
-	scaled := resize.Resize(uint(size), uint(size), img, resize.Bilinear)
 	res := neuralnet.NewTensor3(size, size, 3)
+
+	// Happens sometimes if we rotate a small image (e.g. 1x1)
+	if img.Bounds().Dx() == 0 || img.Bounds().Dy() == 0 {
+		return res
+	}
+
+	scaled := resize.Resize(uint(size), uint(size), img, resize.Bilinear)
 	for x := 0; x < size; x++ {
 		for y := 0; y < size; y++ {
 			pixel := scaled.At(x+scaled.Bounds().Min.X,
