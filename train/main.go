@@ -3,85 +3,79 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
 	"os"
-	"strconv"
 	"time"
 
+	"github.com/unixpickle/anynet/anyff"
+	"github.com/unixpickle/anynet/anysgd"
 	"github.com/unixpickle/autorot"
-	"github.com/unixpickle/sgd"
-	"github.com/unixpickle/weakai/neuralnet"
-)
-
-const (
-	DefaultInSize = 48
-	BatchSize     = 32
-	StepSize      = 0.001 / BatchSize
+	"github.com/unixpickle/essentials"
+	"github.com/unixpickle/rip"
+	"github.com/unixpickle/serializer"
 )
 
 func main() {
 	rand.Seed(time.Now().UnixNano())
-	if len(os.Args) != 3 && len(os.Args) != 4 {
-		dieUsage()
-	}
-	netFile := os.Args[1]
-	imageDir := os.Args[2]
-	inSize := DefaultInSize
-	if len(os.Args) == 4 {
-		var err error
-		inSize, err = strconv.Atoi(os.Args[3])
-		if err != nil {
-			fmt.Fprintln(os.Stderr, "Invalid in_size:", os.Args[3])
-			fmt.Fprintln(os.Stderr)
-			dieUsage()
-		}
+	var netFile string
+	var dataDir string
+	var stepSize float64
+	var batchSize int
+	flag.StringVar(&netFile, "net", "", "network file")
+	flag.StringVar(&dataDir, "data", "", "image directory")
+	flag.Float64Var(&stepSize, "step", 0.001, "SGD step size")
+	flag.IntVar(&batchSize, "batch", 12, "SGD batch size")
+	flag.Parse()
+
+	if netFile == "" || dataDir == "" {
+		essentials.Die("Required flags: -net and -data. See -help for more.")
 	}
 
-	network, err := autorot.LoadNetwork(netFile)
-	if os.IsNotExist(err) {
-		network = autorot.NewNetwork(inSize)
-		log.Println("Created network.")
-	} else if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to load network:", err)
-	} else {
-		log.Println("Loaded network.")
+	log.Println("Loading network...")
+
+	var net *autorot.Net
+	if err := serializer.LoadAny(netFile, &net); err != nil {
+		essentials.Die("Load network failed:", err)
 	}
 
-	log.Println("Reading samples...")
-	samples, err := autorot.ReadSampleSet(network.InputSize, imageDir)
+	log.Println("Loading samples...")
+
+	samples, err := autorot.ReadSampleList(net.InputSize, dataDir)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "Failed to read samples:", err)
+		essentials.Die("Load data failed:", err)
 	}
 
 	log.Println("Training...")
-	cf := neuralnet.DotCost{}
-	gradienter := &neuralnet.BatchRGradienter{
-		Learner:       network.Net.BatchLearner(),
-		CostFunc:      cf,
-		MaxGoroutines: 1,
-		MaxBatchSize:  BatchSize,
+
+	t := &anyff.Trainer{
+		Net:     net.Net,
+		Cost:    autorot.Cost{},
+		Params:  net.Net.Parameters(),
+		Average: true,
 	}
 
-	var iter int
-	var lastBatch sgd.SampleSet
-	sgd.SGDMini(gradienter, samples, StepSize, BatchSize, func(s sgd.SampleSet) bool {
-		var lastCost float64
-		if lastBatch != nil {
-			lastCost = neuralnet.TotalCost(cf, network.Net, lastBatch)
-		}
-		lastBatch = s.Copy()
-		cost := neuralnet.TotalCost(cf, network.Net, s)
-		log.Printf("iteration %d: cost=%f last=%f", iter, cost, lastCost)
-		iter++
-		return true
-	})
+	var iterNum int
+	s := &anysgd.SGD{
+		Fetcher:     t,
+		Gradienter:  t,
+		Transformer: &anysgd.Adam{},
+		Samples:     samples,
+		Rater:       anysgd.ConstRater(stepSize),
+		BatchSize:   batchSize,
+		StatusFunc: func(b anysgd.Batch) {
+			log.Printf("iter %d: cost=%v", iterNum, t.LastCost)
+			iterNum++
+		},
+	}
+
+	s.Run(rip.NewRIP().Chan())
 
 	log.Println("Saving network...")
-	if err := network.Save(netFile); err != nil {
-		fmt.Fprintln(os.Stderr, "Save failed:", err)
-		os.Exit(1)
+	if err := serializer.SaveAny(netFile, net); err != nil {
+		essentials.Die("Save failed:", err)
 	}
 }
 
