@@ -8,6 +8,8 @@ import (
 	"github.com/unixpickle/anyvec"
 	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/serializer"
+
+	_ "github.com/unixpickle/anynet/anyconv"
 )
 
 func init() {
