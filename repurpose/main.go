@@ -38,7 +38,7 @@ func main() {
 	}
 
 	newNet := inNet.Net[:len(inNet.Net)-removeLayers]
-	zeroIn := anydiff.NewConst(anyvec32.MakeVector(inNet.InWidth * inNet.InHeight))
+	zeroIn := anydiff.NewConst(anyvec32.MakeVector(inNet.InWidth * inNet.InHeight * 3))
 	outCount := newNet.Apply(zeroIn, 1).Output().Len()
 	newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 1))
 	out := &autorot.Net{
