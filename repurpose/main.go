@@ -5,6 +5,9 @@ package main
 import (
 	"flag"
 
+	"github.com/unixpickle/anydiff"
+	"github.com/unixpickle/anynet"
+	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/autorot"
 	"github.com/unixpickle/essentials"
 	"github.com/unixpickle/imagenet"
@@ -34,9 +37,13 @@ func main() {
 		essentials.Die("Input dimensions do not form a square.")
 	}
 
+	newNet := inNet.Net[:len(inNet.Net)-removeLayers]
+	zeroIn := anydiff.NewConst(anyvec32.MakeVector(inNet.InWidth * inNet.InHeight))
+	outCount := newNet.Apply(zeroIn, 1).Output().Len()
+	newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 1))
 	out := &autorot.Net{
 		InputSize: inNet.InWidth,
-		Net:       inNet.Net[:len(inNet.Net)-removeLayers],
+		Net:       newNet,
 	}
 	if err := serializer.SaveAny(outFile, out); err != nil {
 		essentials.Die("Save failed:", err)
