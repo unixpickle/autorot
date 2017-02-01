@@ -1,0 +1,44 @@
+// Command repurpose converts an ImageNet classifier to an
+// autorot network.
+package main
+
+import (
+	"flag"
+
+	"github.com/unixpickle/autorot"
+	"github.com/unixpickle/essentials"
+	"github.com/unixpickle/imagenet"
+	"github.com/unixpickle/serializer"
+)
+
+func main() {
+	var inFile string
+	var outFile string
+	var removeLayers int
+
+	flag.StringVar(&inFile, "in", "", "imagenet classifier path")
+	flag.StringVar(&outFile, "out", "", "output network path")
+	flag.IntVar(&removeLayers, "remove", 2, "number of layers to remove")
+
+	flag.Parse()
+
+	if inFile == "" || outFile == "" {
+		essentials.Die("Required flags: -in and -out. See -help for more.")
+	}
+
+	var inNet *imagenet.Classifier
+	if err := serializer.LoadAny(inFile, &inNet); err != nil {
+		essentials.Die("Load input failed:", err)
+	}
+	if inNet.InWidth != inNet.InHeight {
+		essentials.Die("Input dimensions do not form a square.")
+	}
+
+	out := &autorot.Net{
+		InputSize: inNet.InWidth,
+		Net:       inNet.Net[:len(inNet.Net)-removeLayers],
+	}
+	if err := serializer.SaveAny(outFile, out); err != nil {
+		essentials.Die("Save failed:", err)
+	}
+}
