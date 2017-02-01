@@ -9,15 +9,15 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/unixpickle/num-analysis/linalg"
+	"github.com/unixpickle/anynet/anyff"
+	"github.com/unixpickle/anynet/anysgd"
+	"github.com/unixpickle/anyvec/anyvec32"
 	"github.com/unixpickle/resize"
-	"github.com/unixpickle/sgd"
-	"github.com/unixpickle/weakai/neuralnet"
 )
 
 // A Sample stores a training sample for a network.
 type Sample struct {
-	// Path is the path to the unrotated image.
+	// Path is the path of the unrotated image.
 	Path string
 
 	// Angle is the angle at which the image should be
@@ -25,18 +25,20 @@ type Sample struct {
 	Angle float64
 }
 
-// A SampleSet is an sgd.SampleSet that generates
-// neuralnet.VectorSample instances based on the pixels of
-// rotated image samples.
-type SampleSet struct {
+// A SampleList is an anyff.SampleList for rotated image
+// samples.
+//
+// It is designed to work with data downloaded via
+// https://github.com/unixpickle/imagenet.
+type SampleList struct {
 	Samples   []Sample
 	ImageSize int
 }
 
-// ReadSampleSet walks the directory and creates a sample
+// ReadSampleList walks the directory and creates a sample
 // for each of the images (with a random rotation).
-func ReadSampleSet(imageSize int, dir string) (*SampleSet, error) {
-	res := &SampleSet{ImageSize: imageSize}
+func ReadSampleList(imageSize int, dir string) (*SampleList, error) {
+	res := &SampleList{ImageSize: imageSize}
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -55,19 +57,18 @@ func ReadSampleSet(imageSize int, dir string) (*SampleSet, error) {
 }
 
 // Len returns the number of samples in the set.
-func (s *SampleSet) Len() int {
+func (s *SampleList) Len() int {
 	return len(s.Samples)
 }
 
 // Swap swaps two sample indices.
-func (s *SampleSet) Swap(i, j int) {
+func (s *SampleList) Swap(i, j int) {
 	s.Samples[i], s.Samples[j] = s.Samples[j], s.Samples[i]
 }
 
 // GetSample generates a rotated and scaled image tensor
 // for the given sample index.
-// It returns a neuralnet.VectorSample.
-func (s *SampleSet) GetSample(idx int) interface{} {
+func (s *SampleList) GetSample(idx int) *anyff.Sample {
 	sample := s.Samples[idx]
 	f, err := os.Open(sample.Path)
 	if err != nil {
@@ -79,32 +80,19 @@ func (s *SampleSet) GetSample(idx int) interface{} {
 		panic(err)
 	}
 	rotated := Rotate(img, sample.Angle)
-
-	outIdx := int(2*sample.Angle/math.Pi + 0.5)
-	outVec := make(linalg.Vector, 4)
-	outVec[outIdx] = 1
-
-	return neuralnet.VectorSample{
-		Input:  netInputTensor(rotated, s.ImageSize).Data,
-		Output: outVec,
+	outVec := []float32{float32(sample.Angle)}
+	inVec := netInputTensor(rotated, s.ImageSize)
+	return &anyff.Sample{
+		Input:  anyvec32.MakeVectorData(inVec),
+		Output: anyvec32.MakeVectorData(outVec),
 	}
 }
 
-// Copy creates a copy of the sample set.
-func (s *SampleSet) Copy() sgd.SampleSet {
-	res := &SampleSet{
+// Slice returns a subset of the list.
+func (s *SampleList) Slice(i, j int) anysgd.SampleList {
+	return &SampleList{
 		ImageSize: s.ImageSize,
-		Samples:   make([]Sample, len(s.Samples)),
-	}
-	copy(res.Samples, s.Samples)
-	return res
-}
-
-// Subset returns a subset of the sample set.
-func (s *SampleSet) Subset(i, j int) sgd.SampleSet {
-	return &SampleSet{
-		ImageSize: s.ImageSize,
-		Samples:   s.Samples[i:j],
+		Samples:   append([]Sample{}, s.Samples[i:j]...),
 	}
 }
 
@@ -112,8 +100,8 @@ func randomAngle() float64 {
 	return float64(rand.Intn(4)) * math.Pi / 2
 }
 
-func netInputTensor(img image.Image, size int) *neuralnet.Tensor3 {
-	res := neuralnet.NewTensor3(size, size, 3)
+func netInputTensor(img image.Image, size int) []float32 {
+	res := make([]float32, size*size*3)
 
 	// Happens sometimes if we rotate a small image (e.g. 1x1)
 	if img.Bounds().Dx() == 0 || img.Bounds().Dy() == 0 {
@@ -121,15 +109,18 @@ func netInputTensor(img image.Image, size int) *neuralnet.Tensor3 {
 	}
 
 	scaled := resize.Resize(uint(size), uint(size), img, resize.Bilinear)
-	for x := 0; x < size; x++ {
-		for y := 0; y < size; y++ {
+	subIdx := 0
+	for y := 0; y < size; y++ {
+		for x := 0; x < size; x++ {
 			pixel := scaled.At(x+scaled.Bounds().Min.X,
 				y+scaled.Bounds().Min.Y)
 			r, g, b, _ := pixel.RGBA()
-			res.Set(x, y, 0, float64(r)/0xffff)
-			res.Set(x, y, 1, float64(g)/0xffff)
-			res.Set(x, y, 2, float64(b)/0xffff)
+			res[subIdx] = float32(r) / 0xffff
+			res[subIdx+1] = float32(g) / 0xffff
+			res[subIdx+2] = float32(b) / 0xffff
+			subIdx += 3
 		}
 	}
+
 	return res
 }
