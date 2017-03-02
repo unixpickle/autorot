@@ -69,24 +69,7 @@ func (n *Net) Cost(desired, actual anydiff.Res, num int) anydiff.Res {
 	}
 	switch n.OutputType {
 	case RawAngle:
-		dotProducts := anydiff.Pool(actual, func(a anydiff.Res) anydiff.Res {
-			return anydiff.Pool(desired, func(b anydiff.Res) anydiff.Res {
-				return anydiff.Add(
-					anydiff.Mul(anydiff.Sin(a), anydiff.Sin(b)),
-					anydiff.Mul(anydiff.Cos(a), anydiff.Cos(b)),
-				)
-			})
-		})
-
-		// Utilize the fact that the dot product between two unit
-		// vectors is < 1 when the vectors are not equal.
-		differences := anydiff.Complement(dotProducts)
-		mat := &anydiff.Matrix{
-			Data: differences,
-			Rows: num,
-			Cols: differences.Output().Len() / num,
-		}
-		return anydiff.SumCols(mat)
+		return anydiff.Complement(anydiff.Cos(anydiff.Sub(actual, desired)))
 	default:
 		panic("invalid OutputType")
 	}
