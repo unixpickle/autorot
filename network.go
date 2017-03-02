@@ -64,6 +64,9 @@ func (n *Net) Evaluate(img image.Image) float64 {
 // Cost computes the total cost, given the desired output
 // angles and the outputs from the network.
 func (n *Net) Cost(desired, actual anydiff.Res, num int) anydiff.Res {
+	if num != desired.Output().Len() {
+		panic("bad batch size")
+	}
 	switch n.OutputType {
 	case RawAngle:
 		dotProducts := anydiff.Pool(actual, func(a anydiff.Res) anydiff.Res {
