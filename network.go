@@ -36,17 +36,12 @@ type Net struct {
 
 // DeserializeNet deserializes a Net.
 func DeserializeNet(d []byte) (*Net, error) {
-	var inSize serializer.Int
-	var outType serializer.Int
-	var net anynet.Net
-	if err := serializer.DeserializeAny(d, &inSize, &outType, &net); err != nil {
+	var res Net
+	err := serializer.DeserializeAny(d, &res.InputSize, &res.OutputType, &res.Net)
+	if err != nil {
 		return nil, err
 	}
-	return &Net{
-		InputSize:  int(inSize),
-		OutputType: OutputType(outType),
-		Net:        net,
-	}, nil
+	return &res, nil
 }
 
 // Evaluate generates a prediction for an image.
