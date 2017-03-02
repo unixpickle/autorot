@@ -68,16 +68,16 @@ func (s *SampleList) Swap(i, j int) {
 
 // GetSample generates a rotated and scaled image tensor
 // for the given sample index.
-func (s *SampleList) GetSample(idx int) *anyff.Sample {
+func (s *SampleList) GetSample(idx int) (*anyff.Sample, error) {
 	sample := s.Samples[idx]
 	f, err := os.Open(sample.Path)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	defer f.Close()
 	img, _, err := image.Decode(f)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	rotated := Rotate(img, sample.Angle)
 	outVec := []float32{float32(sample.Angle)}
@@ -85,7 +85,7 @@ func (s *SampleList) GetSample(idx int) *anyff.Sample {
 	return &anyff.Sample{
 		Input:  anyvec32.MakeVectorData(inVec),
 		Output: anyvec32.MakeVectorData(outVec),
-	}
+	}, nil
 }
 
 // Slice returns a subset of the list.
