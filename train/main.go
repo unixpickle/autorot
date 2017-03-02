@@ -52,7 +52,7 @@ func main() {
 
 	t := &anyff.Trainer{
 		Net:     net.Net,
-		Cost:    autorot.Cost{},
+		Cost:    net,
 		Params:  net.Net.Parameters(),
 		Average: true,
 	}

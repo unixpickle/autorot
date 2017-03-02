@@ -42,8 +42,9 @@ func main() {
 	outCount := newNet.Apply(zeroIn, 1).Output().Len()
 	newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 1))
 	out := &autorot.Net{
-		InputSize: inNet.InWidth,
-		Net:       newNet,
+		InputSize:  inNet.InWidth,
+		OutputType: autorot.RawAngle,
+		Net:        newNet,
 	}
 	if err := serializer.SaveAny(outFile, out); err != nil {
 		essentials.Die("Save failed:", err)
