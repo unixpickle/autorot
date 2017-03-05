@@ -14,23 +14,14 @@ import (
 	"github.com/unixpickle/anyvec/anyvec32"
 )
 
-// A Sample stores a training sample for a network.
-type Sample struct {
-	// Path is the path of the unrotated image.
-	Path string
-
-	// Angle is the angle at which the image should be
-	// rotated before being fed to the network.
-	Angle float64
-}
-
-// A SampleList is an anyff.SampleList for rotated image
-// samples.
+// A SampleList is an anyff.SampleList of image samples.
+//
+// The samples are rotated by random angles.
 //
 // It is designed to work with data downloaded via
 // https://github.com/unixpickle/imagenet.
 type SampleList struct {
-	Samples   []Sample
+	Paths     []string
 	ImageSize int
 }
 
@@ -44,8 +35,7 @@ func ReadSampleList(imageSize int, dir string) (*SampleList, error) {
 		}
 		ext := filepath.Ext(path)
 		if ext == ".jpg" || ext == ".jpeg" || ext == ".png" {
-			sample := Sample{Path: path, Angle: randomAngle()}
-			res.Samples = append(res.Samples, sample)
+			res.Paths = append(res.Paths, path)
 		}
 		return nil
 	})
@@ -57,19 +47,19 @@ func ReadSampleList(imageSize int, dir string) (*SampleList, error) {
 
 // Len returns the number of samples in the set.
 func (s *SampleList) Len() int {
-	return len(s.Samples)
+	return len(s.Paths)
 }
 
 // Swap swaps two sample indices.
 func (s *SampleList) Swap(i, j int) {
-	s.Samples[i], s.Samples[j] = s.Samples[j], s.Samples[i]
+	s.Paths[i], s.Paths[j] = s.Paths[j], s.Paths[i]
 }
 
 // GetSample generates a rotated and scaled image tensor
 // for the given sample index.
 func (s *SampleList) GetSample(idx int) (*anyff.Sample, error) {
-	sample := s.Samples[idx]
-	f, err := os.Open(sample.Path)
+	path := s.Paths[idx]
+	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
@@ -78,8 +68,9 @@ func (s *SampleList) GetSample(idx int) (*anyff.Sample, error) {
 	if err != nil {
 		return nil, err
 	}
-	rotated := Rotate(img, sample.Angle, s.ImageSize)
-	outVec := []float32{float32(sample.Angle)}
+	theta := randomAngle()
+	rotated := Rotate(img, theta, s.ImageSize)
+	outVec := []float32{float32(theta)}
 	inVec := netInputTensor(rotated)
 	return &anyff.Sample{
 		Input:  anyvec32.MakeVectorData(inVec),
@@ -90,8 +81,8 @@ func (s *SampleList) GetSample(idx int) (*anyff.Sample, error) {
 // Slice returns a subset of the list.
 func (s *SampleList) Slice(i, j int) anysgd.SampleList {
 	return &SampleList{
+		Paths:     append([]string{}, s.Paths[i:j]...),
 		ImageSize: s.ImageSize,
-		Samples:   append([]Sample{}, s.Samples[i:j]...),
 	}
 }
 
