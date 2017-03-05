@@ -15,14 +15,17 @@ import (
 //
 // The angle is specified in clockwise radians.
 func Rotate(img image.Image, angle float64) image.Image {
+	cos := math.Cos(angle)
+	sin := math.Sin(angle)
+
 	width := float64(img.Bounds().Dx())
 	height := float64(img.Bounds().Dy())
 	axisBasis := &linalg.Matrix{
 		Rows: 2,
 		Cols: 2,
 		Data: []float64{
-			math.Cos(angle) * width / 2, -math.Sin(angle) * height / 2,
-			math.Sin(angle) * width / 2, math.Cos(angle) * height / 2,
+			cos * width / 2, -sin * height / 2,
+			sin * width / 2, cos * height / 2,
 		},
 	}
 
@@ -39,8 +42,8 @@ func Rotate(img image.Image, angle float64) image.Image {
 		for y := 0; y < int(sideLength); y++ {
 			xOff := float64(x) - sideLength/2
 			yOff := float64(y) - sideLength/2
-			newX := math.Cos(angle)*xOff + math.Sin(angle)*yOff + width/2
-			newY := math.Cos(angle)*yOff - math.Sin(angle)*xOff + height/2
+			newX := cos*xOff + sin*yOff + width/2
+			newY := cos*yOff - sin*xOff + height/2
 			newImage.SetRGBA(x, y, interpolate(inImage, newX, newY))
 		}
 	}
