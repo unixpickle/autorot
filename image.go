@@ -33,6 +33,7 @@ func Rotate(img image.Image, angle float64) image.Image {
 	}
 
 	// TODO: figure out how to use draw2d for this.
+	inImage := newRGBACache(img)
 	newImage := image.NewRGBA(image.Rect(0, 0, int(sideLength), int(sideLength)))
 	for x := 0; x < int(sideLength); x++ {
 		for y := 0; y < int(sideLength); y++ {
@@ -40,7 +41,7 @@ func Rotate(img image.Image, angle float64) image.Image {
 			yOff := float64(y) - sideLength/2
 			newX := math.Cos(angle)*xOff + math.Sin(angle)*yOff + width/2
 			newY := math.Cos(angle)*yOff - math.Sin(angle)*xOff + height/2
-			newImage.Set(x, y, interpolate(img, newX, newY))
+			newImage.SetRGBA(x, y, interpolate(inImage, newX, newY))
 		}
 	}
 
@@ -63,24 +64,24 @@ func rectFits(axisBasis *ludecomp.LU, sideLength float64) bool {
 	return true
 }
 
-func interpolate(img image.Image, x, y float64) color.Color {
+func interpolate(img *rgbaCache, x, y float64) color.RGBA {
 	x1 := int(x)
 	x2 := int(x + 1)
 	y1 := int(y)
 	y2 := int(y + 1)
 	amountX1 := float64(x2) - x
 	amountY1 := float64(y2) - y
-	clipRange(0, img.Bounds().Dx(), &x1, &x2)
-	clipRange(0, img.Bounds().Dy(), &y1, &y2)
+	clipRange(0, img.Width(), &x1, &x2)
+	clipRange(0, img.Height(), &y1, &y2)
 
 	a11 := amountX1 * amountY1
-	r11, g11, b11, _ := img.At(x1, y1).RGBA()
+	r11, g11, b11 := img.At(x1, y1)
 	a12 := amountX1 * (1 - amountY1)
-	r12, g12, b12, _ := img.At(x1, y2).RGBA()
+	r12, g12, b12 := img.At(x1, y2)
 	a21 := (1 - amountX1) * amountY1
-	r21, g21, b21, _ := img.At(x2, y1).RGBA()
+	r21, g21, b21 := img.At(x2, y1)
 	a22 := (1 - amountX1) * (1 - amountY1)
-	r22, g22, b22, _ := img.At(x2, y2).RGBA()
+	r22, g22, b22 := img.At(x2, y2)
 
 	return color.RGBA{
 		R: interpolateColor(r11, r12, r21, r22, a11, a12, a21, a22),
@@ -101,7 +102,46 @@ func clipRange(min, max int, vals ...*int) {
 	}
 }
 
-func interpolateColor(v1, v2, v3, v4 uint32, a1, a2, a3, a4 float64) uint8 {
-	return uint8((float64(v1)*a1 + float64(v2)*a2 + float64(v3)*a3 +
-		float64(v4)*a4) / 0x100)
+func interpolateColor(v1, v2, v3, v4 float64, a1, a2, a3, a4 float64) uint8 {
+	return uint8(v1*a1 + v2*a2 + v3*a3 + v4*a4)
+}
+
+type rgbaCache struct {
+	img        image.Image
+	cache      [][3]float64
+	cacheValid []bool
+}
+
+func newRGBACache(img image.Image) *rgbaCache {
+	pixels := img.Bounds().Dx() * img.Bounds().Dy()
+	return &rgbaCache{
+		img:        img,
+		cache:      make([][3]float64, pixels),
+		cacheValid: make([]bool, pixels),
+	}
+}
+
+func (r *rgbaCache) Width() int {
+	return r.img.Bounds().Dx()
+}
+
+func (r *rgbaCache) Height() int {
+	return r.img.Bounds().Dy()
+}
+
+func (r *rgbaCache) At(x, y int) (float64, float64, float64) {
+	idx := x + y*r.img.Bounds().Dx()
+	if r.cacheValid[idx] {
+		c := r.cache[idx]
+		return c[0], c[1], c[2]
+	}
+	r.cacheValid[idx] = true
+	rInt, gInt, bInt, _ := r.img.At(x+r.img.Bounds().Min.X, y+r.img.Bounds().Min.Y).RGBA()
+	r.cache[idx] = [3]float64{
+		float64(rInt) / 0x100,
+		float64(gInt) / 0x100,
+		float64(bInt) / 0x100,
+	}
+	c := r.cache[idx]
+	return c[0], c[1], c[2]
 }
