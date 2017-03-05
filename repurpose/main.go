@@ -18,10 +18,12 @@ func main() {
 	var inFile string
 	var outFile string
 	var removeLayers int
+	var rightAngles bool
 
 	flag.StringVar(&inFile, "in", "", "imagenet classifier path")
 	flag.StringVar(&outFile, "out", "", "output network path")
 	flag.IntVar(&removeLayers, "remove", 2, "number of layers to remove")
+	flag.BoolVar(&rightAngles, "rightangles", false, "use right angles")
 
 	flag.Parse()
 
@@ -40,11 +42,19 @@ func main() {
 	newNet := inNet.Net[:len(inNet.Net)-removeLayers]
 	zeroIn := anydiff.NewConst(anyvec32.MakeVector(inNet.InWidth * inNet.InHeight * 3))
 	outCount := newNet.Apply(zeroIn, 1).Output().Len()
-	newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 1))
+	if rightAngles {
+		newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 4),
+			anynet.LogSoftmax)
+	} else {
+		newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 1))
+	}
 	out := &autorot.Net{
 		InputSize:  inNet.InWidth,
 		OutputType: autorot.RawAngle,
 		Net:        newNet,
+	}
+	if rightAngles {
+		out.OutputType = autorot.RightAngles
 	}
 	if err := serializer.SaveAny(outFile, out); err != nil {
 		essentials.Die("Save failed:", err)

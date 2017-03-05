@@ -2,6 +2,7 @@ package autorot
 
 import (
 	"image"
+	"math"
 
 	"github.com/unixpickle/anydiff"
 	"github.com/unixpickle/anynet"
@@ -18,6 +19,7 @@ type OutputType int
 
 const (
 	RawAngle OutputType = iota
+	RightAngles
 )
 
 func init() {
@@ -57,6 +59,8 @@ func (n *Net) Evaluate(img image.Image) float64 {
 	switch n.OutputType {
 	case RawAngle:
 		return float64(anyvec.Sum(out).(float32))
+	case RightAngles:
+		return float64(anyvec.Sum(rightAngleMaxes(out)).(float32))
 	default:
 		panic("invalid OutputType")
 	}
@@ -71,6 +75,9 @@ func (n *Net) Cost(desired, actual anydiff.Res, num int) anydiff.Res {
 	switch n.OutputType {
 	case RawAngle:
 		return anydiff.Complement(anydiff.Cos(anydiff.Sub(actual, desired)))
+	case RightAngles:
+		oneHots := anydiff.NewConst(rightAngleOneHots(desired.Output()))
+		return anynet.DotCost{}.Cost(oneHots, actual, num)
 	default:
 		panic("invalid OutputType")
 	}
@@ -89,4 +96,32 @@ func (n *Net) Serialize() ([]byte, error) {
 		serializer.Int(n.OutputType),
 		n.Net,
 	)
+}
+
+func rightAngleOneHots(angles anyvec.Vector) anyvec.Vector {
+	// For each angle, we produce a one-hot vector indicating
+	// which multiple of 90 degrees it is closest to.
+	c := angles.Creator()
+	stops := c.MakeNumericList([]float64{0, -math.Pi / 2, -math.Pi, -3 * math.Pi / 2})
+	repeatedAngles := c.MakeVector(angles.Len() * 4)
+	repeatedAngles.AddScaler(c.MakeNumeric(1))
+	ones := repeatedAngles.Slice(0, angles.Len())
+	anyvec.ScaleChunks(repeatedAngles, angles)
+	anyvec.AddRepeated(repeatedAngles, c.MakeVectorData(stops))
+	anyvec.Cos(repeatedAngles)
+	maxMap := anyvec.MapMax(repeatedAngles, 4)
+	repeatedAngles.Scale(c.MakeNumeric(0))
+	maxMap.MapTranspose(ones, repeatedAngles)
+	return repeatedAngles
+}
+
+func rightAngleMaxes(softOut anyvec.Vector) anyvec.Vector {
+	c := softOut.Creator()
+	stops := c.MakeNumericList([]float64{0, math.Pi / 2, math.Pi, 3 * math.Pi / 2})
+	repeatedAngles := c.MakeVector(softOut.Len())
+	anyvec.AddRepeated(repeatedAngles, c.MakeVectorData(stops))
+	maxes := anyvec.MapMax(softOut, 4)
+	res := c.MakeVector(softOut.Len() / 4)
+	maxes.Map(repeatedAngles, res)
+	return res
 }

@@ -36,4 +36,40 @@ func TestNetworkCost(t *testing.T) {
 			}
 		}
 	})
+	t.Run("RightAngles", func(t *testing.T) {
+		actual := anydiff.NewConst(
+			anyvec32.MakeVectorData([]float32{
+				-0.69315, -1.38629, -2.30259, -1.89712,
+				-0.69315, -1.38629, -2.30259, -1.89712,
+			}),
+		)
+		desired := anydiff.NewConst(
+			anyvec32.MakeVectorData([]float32{5, 2}),
+		)
+		net := &Net{OutputType: RightAngles}
+		actualCost := net.Cost(desired, actual, 2).Output().Data().([]float32)
+		expectedCost := []float32{1.89712, 1.38629}
+		for i, x := range expectedCost {
+			a := actualCost[i]
+			if math.Abs(float64(x-a)) > 1e-3 {
+				t.Errorf("output %d: should be %f but got %f", i, x, a)
+			}
+		}
+	})
+}
+
+func TestRightAngleMaxes(t *testing.T) {
+	vec := anyvec32.MakeVectorData([]float32{
+		-0.69315, -1.38629, -2.30259, -1.89712,
+		-1.20397, -0.69315, -2.30259, -2.30259,
+		-1.20397, -2.30259, -2.30259, -0.69315,
+	})
+	actual := rightAngleMaxes(vec).Data().([]float32)
+	expected := []float32{0, math.Pi / 2, 3 * math.Pi / 2}
+	for i, x := range expected {
+		a := actual[i]
+		if math.Abs(float64(x-a)) > 1e-3 {
+			t.Errorf("output %d: expected %f but got %f", i, x, a)
+		}
+	}
 }
