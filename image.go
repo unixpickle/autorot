@@ -14,7 +14,10 @@ import (
 // out of the rotated image's bounds.
 //
 // The angle is specified in clockwise radians.
-func Rotate(img image.Image, angle float64) image.Image {
+//
+// The outSize argument specifies the side length of the
+// resulting image.
+func Rotate(img image.Image, angle float64, outSize int) image.Image {
 	cos := math.Cos(angle)
 	sin := math.Sin(angle)
 
@@ -35,13 +38,14 @@ func Rotate(img image.Image, angle float64) image.Image {
 		sideLength++
 	}
 
-	// TODO: figure out how to use draw2d for this.
+	scale := sideLength / float64(outSize)
+
 	inImage := newRGBACache(img)
-	newImage := image.NewRGBA(image.Rect(0, 0, int(sideLength), int(sideLength)))
-	for x := 0; x < int(sideLength); x++ {
-		for y := 0; y < int(sideLength); y++ {
-			xOff := float64(x) - sideLength/2
-			yOff := float64(y) - sideLength/2
+	newImage := image.NewRGBA(image.Rect(0, 0, int(outSize), int(outSize)))
+	for x := 0; x < int(outSize); x++ {
+		for y := 0; y < int(outSize); y++ {
+			xOff := scale*float64(x) - sideLength/2
+			yOff := scale*float64(y) - sideLength/2
 			newX := cos*xOff + sin*yOff + width/2
 			newY := cos*yOff - sin*xOff + height/2
 			newImage.SetRGBA(x, y, interpolate(inImage, newX, newY))
@@ -113,6 +117,7 @@ type rgbaCache struct {
 	img        image.Image
 	cache      [][3]float64
 	cacheValid []bool
+	bounds     image.Rectangle
 }
 
 func newRGBACache(img image.Image) *rgbaCache {
@@ -121,25 +126,26 @@ func newRGBACache(img image.Image) *rgbaCache {
 		img:        img,
 		cache:      make([][3]float64, pixels),
 		cacheValid: make([]bool, pixels),
+		bounds:     img.Bounds(),
 	}
 }
 
 func (r *rgbaCache) Width() int {
-	return r.img.Bounds().Dx()
+	return r.bounds.Dx()
 }
 
 func (r *rgbaCache) Height() int {
-	return r.img.Bounds().Dy()
+	return r.bounds.Dy()
 }
 
 func (r *rgbaCache) At(x, y int) (float64, float64, float64) {
-	idx := x + y*r.img.Bounds().Dx()
+	idx := x + y*r.bounds.Dx()
 	if r.cacheValid[idx] {
 		c := r.cache[idx]
 		return c[0], c[1], c[2]
 	}
 	r.cacheValid[idx] = true
-	rInt, gInt, bInt, _ := r.img.At(x+r.img.Bounds().Min.X, y+r.img.Bounds().Min.Y).RGBA()
+	rInt, gInt, bInt, _ := r.img.At(x+r.bounds.Min.X, y+r.bounds.Min.Y).RGBA()
 	r.cache[idx] = [3]float64{
 		float64(rInt) / 0x100,
 		float64(gInt) / 0x100,

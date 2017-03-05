@@ -12,7 +12,6 @@ import (
 	"github.com/unixpickle/anynet/anyff"
 	"github.com/unixpickle/anynet/anysgd"
 	"github.com/unixpickle/anyvec/anyvec32"
-	"github.com/unixpickle/resize"
 )
 
 // A Sample stores a training sample for a network.
@@ -79,9 +78,9 @@ func (s *SampleList) GetSample(idx int) (*anyff.Sample, error) {
 	if err != nil {
 		return nil, err
 	}
-	rotated := Rotate(img, sample.Angle)
+	rotated := Rotate(img, sample.Angle, s.ImageSize)
 	outVec := []float32{float32(sample.Angle)}
-	inVec := netInputTensor(rotated, s.ImageSize)
+	inVec := netInputTensor(rotated)
 	return &anyff.Sample{
 		Input:  anyvec32.MakeVectorData(inVec),
 		Output: anyvec32.MakeVectorData(outVec),
@@ -100,20 +99,14 @@ func randomAngle() float64 {
 	return float64(rand.Intn(4)) * math.Pi / 2
 }
 
-func netInputTensor(img image.Image, size int) []float32 {
+func netInputTensor(img image.Image) []float32 {
+	size := img.Bounds().Dx()
 	res := make([]float32, size*size*3)
 
-	// Happens sometimes if we rotate a small image (e.g. 1x1)
-	if img.Bounds().Dx() == 0 || img.Bounds().Dy() == 0 {
-		return res
-	}
-
-	scaled := resize.Resize(uint(size), uint(size), img, resize.Bilinear)
 	subIdx := 0
 	for y := 0; y < size; y++ {
 		for x := 0; x < size; x++ {
-			pixel := scaled.At(x+scaled.Bounds().Min.X,
-				y+scaled.Bounds().Min.Y)
+			pixel := img.At(x+img.Bounds().Min.X, y+img.Bounds().Min.Y)
 			r, g, b, _ := pixel.RGBA()
 			res[subIdx] = float32(r) / 0xffff
 			res[subIdx+1] = float32(g) / 0xffff

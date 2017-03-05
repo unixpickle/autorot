@@ -46,11 +46,12 @@ func DeserializeNet(d []byte) (*Net, error) {
 
 // Evaluate generates a prediction for an image.
 func (n *Net) Evaluate(img image.Image) float64 {
-	if img.Bounds().Dx() != img.Bounds().Dy() {
+	if img.Bounds().Dx() != img.Bounds().Dy() ||
+		img.Bounds().Dx() != n.InputSize {
 		// Hack to crop the center square.
-		img = Rotate(img, 0)
+		img = Rotate(img, 0, n.InputSize)
 	}
-	inTensor := netInputTensor(img, n.InputSize)
+	inTensor := netInputTensor(img)
 	inConst := anydiff.NewConst(anyvec32.MakeVectorData(inTensor))
 	out := n.Net.Apply(inConst, 1).Output()
 	switch n.OutputType {
