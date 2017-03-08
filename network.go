@@ -47,7 +47,12 @@ func DeserializeNet(d []byte) (*Net, error) {
 }
 
 // Evaluate generates a prediction for an image.
-func (n *Net) Evaluate(img image.Image) float64 {
+//
+// The confidence measures how accurate the angle is
+// likely to be.
+// It should range between 0 and 1.
+// Some output types do not yield a confidence measure.
+func (n *Net) Evaluate(img image.Image) (angle, confidence float64) {
 	if img.Bounds().Dx() != img.Bounds().Dy() ||
 		img.Bounds().Dx() != n.InputSize {
 		// Hack to crop the center square.
@@ -58,9 +63,11 @@ func (n *Net) Evaluate(img image.Image) float64 {
 	out := n.Net.Apply(inConst, 1).Output()
 	switch n.OutputType {
 	case RawAngle:
-		return float64(anyvec.Sum(out).(float32))
+		return float64(anyvec.Sum(out).(float32)), 0
 	case RightAngles:
-		return float64(anyvec.Sum(rightAngleMaxes(out)).(float32))
+		angles, probs := rightAngleMaxes(out)
+		return float64(anyvec.Sum(angles).(float32)),
+			float64(anyvec.Sum(probs).(float32))
 	default:
 		panic("invalid OutputType")
 	}
@@ -115,13 +122,19 @@ func rightAngleOneHots(angles anyvec.Vector) anyvec.Vector {
 	return repeatedAngles
 }
 
-func rightAngleMaxes(softOut anyvec.Vector) anyvec.Vector {
+func rightAngleMaxes(softOut anyvec.Vector) (angles, probs anyvec.Vector) {
 	c := softOut.Creator()
 	stops := c.MakeNumericList([]float64{0, math.Pi / 2, math.Pi, 3 * math.Pi / 2})
 	repeatedAngles := c.MakeVector(softOut.Len())
 	anyvec.AddRepeated(repeatedAngles, c.MakeVectorData(stops))
 	maxes := anyvec.MapMax(softOut, 4)
-	res := c.MakeVector(softOut.Len() / 4)
-	maxes.Map(repeatedAngles, res)
-	return res
+
+	angles = c.MakeVector(softOut.Len() / 4)
+	maxes.Map(repeatedAngles, angles)
+
+	probs = c.MakeVector(softOut.Len() / 4)
+	maxes.Map(softOut, probs)
+	anyvec.Exp(probs)
+
+	return
 }

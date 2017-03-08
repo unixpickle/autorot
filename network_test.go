@@ -62,10 +62,12 @@ func TestRightAngleMaxes(t *testing.T) {
 	vec := anyvec32.MakeVectorData([]float32{
 		-0.69315, -1.38629, -2.30259, -1.89712,
 		-1.20397, -0.69315, -2.30259, -2.30259,
-		-1.20397, -2.30259, -2.30259, -0.69315,
+		-1.60944, -2.30259, -2.30259, -0.51083,
 	})
-	actual := rightAngleMaxes(vec).Data().([]float32)
-	expected := []float32{0, math.Pi / 2, 3 * math.Pi / 2}
+	actualAngles, actualProbs := rightAngleMaxes(vec)
+	actual := append(actualAngles.Data().([]float32),
+		actualProbs.Data().([]float32)...)
+	expected := []float32{0, math.Pi / 2, 3 * math.Pi / 2, 0.5, 0.5, 0.6}
 	for i, x := range expected {
 		a := actual[i]
 		if math.Abs(float64(x-a)) > 1e-3 {
