@@ -19,11 +19,13 @@ func main() {
 	var outFile string
 	var removeLayers int
 	var rightAngles bool
+	var confidence bool
 
 	flag.StringVar(&inFile, "in", "", "imagenet classifier path")
 	flag.StringVar(&outFile, "out", "", "output network path")
 	flag.IntVar(&removeLayers, "remove", 2, "number of layers to remove")
 	flag.BoolVar(&rightAngles, "rightangles", false, "use right angles")
+	flag.BoolVar(&confidence, "confidence", false, "use confidence and angle outputs")
 
 	flag.Parse()
 
@@ -45,6 +47,8 @@ func main() {
 	if rightAngles {
 		newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 4),
 			anynet.LogSoftmax)
+	} else if confidence {
+		newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 2))
 	} else {
 		newNet = append(newNet, anynet.NewFC(anyvec32.CurrentCreator(), outCount, 1))
 	}
@@ -55,6 +59,8 @@ func main() {
 	}
 	if rightAngles {
 		out.OutputType = autorot.RightAngles
+	} else if confidence {
+		out.OutputType = autorot.ConfidenceAngle
 	}
 	if err := serializer.SaveAny(outFile, out); err != nil {
 		essentials.Die("Save failed:", err)

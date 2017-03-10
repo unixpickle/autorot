@@ -20,6 +20,7 @@ type OutputType int
 const (
 	RawAngle OutputType = iota
 	RightAngles
+	ConfidenceAngle
 )
 
 func init() {
@@ -68,6 +69,11 @@ func (n *Net) Evaluate(img image.Image) (angle, confidence float64) {
 		angles, probs := rightAngleMaxes(out)
 		return float64(anyvec.Sum(angles).(float32)),
 			float64(anyvec.Sum(probs).(float32))
+	case ConfidenceAngle:
+		angle := float64(anyvec.Sum(out.Slice(0, 1)).(float32))
+		confidence := float64(anyvec.Sum(out.Slice(1, 2)).(float32))
+		confidence = math.Max(0, math.Min(1, (2-confidence)/2))
+		return angle, confidence
 	default:
 		panic("invalid OutputType")
 	}
@@ -85,6 +91,16 @@ func (n *Net) Cost(desired, actual anydiff.Res, num int) anydiff.Res {
 	case RightAngles:
 		oneHots := anydiff.NewConst(rightAngleOneHots(desired.Output()))
 		return anynet.DotCost{}.Cost(oneHots, actual, num)
+	case ConfidenceAngle:
+		return anydiff.Pool(actual, func(actual anydiff.Res) anydiff.Res {
+			angleMapper := confidenceAngleMapper(0, num)
+			confidenceMapper := confidenceAngleMapper(1, num)
+			angles := anydiff.Map(angleMapper, actual)
+			costs := anydiff.Complement(anydiff.Cos(anydiff.Sub(angles, desired)))
+			confidences := anydiff.Map(confidenceMapper, actual)
+			confErr := anynet.MSE{}.Cost(costs, confidences, num)
+			return anydiff.Add(costs, confErr)
+		})
 	default:
 		panic("invalid OutputType")
 	}
@@ -137,4 +153,12 @@ func rightAngleMaxes(softOut anyvec.Vector) (angles, probs anyvec.Vector) {
 	anyvec.Exp(probs)
 
 	return
+}
+
+func confidenceAngleMapper(modIdx int, num int) anyvec.Mapper {
+	mapping := make([]int, num)
+	for i := range mapping {
+		mapping[i] = i*2 + modIdx
+	}
+	return anyvec32.MakeMapper(num*2, mapping)
 }
